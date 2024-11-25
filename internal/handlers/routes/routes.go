@@ -43,8 +43,8 @@ func NewRouter(app *fiber.App) {
 
 	// user nostr
 	userEndpoint := user.NewEndpoint()
-	userApi := app
-	userApi.Get(".well-known/nostr.json", userEndpoint.Find)
+	userRoute := app
+	userRoute.Get(".well-known/nostr.json", userEndpoint.Find)
 
 	app.Use(middlewares.Notfound())
 }

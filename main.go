@@ -64,7 +64,7 @@ func main() {
 		sql.RelayDatabase = session.Database
 
 		if !fiber.IsChild() {
-			session.Database.AutoMigrate(&models.Book{})
+			session.Database.AutoMigrate(&models.User{})
 		}
 	}
 
