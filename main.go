@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/saveblush/reraw-api/docs"
 	"github.com/saveblush/reraw-api/internal/core/breaker"
 	"github.com/saveblush/reraw-api/internal/core/config"
 	"github.com/saveblush/reraw-api/internal/core/connection/sql"
@@ -22,25 +23,25 @@ import (
 // @name Authorization
 func main() {
 	// Init logger
-	logger.New()
+	logger.InitLogger()
 
 	// Init configuration
 	err := config.InitConfig()
 	if err != nil {
-		logger.Log().Fatalf("init configuration error: %s", err)
+		logger.Log.Fatalf("init configuration error: %s", err)
 	}
 
 	// Init return result
 	err = config.InitReturnResult()
 	if err != nil {
-		logger.Log().Fatalf("init return result error: %s", err)
+		logger.Log.Fatalf("init return result error: %s", err)
 	}
 
 	// Set swagger info
-	/*docs.SwaggerInfo.Title = config.CF.Swagger.Title
+	docs.SwaggerInfo.Title = config.CF.Swagger.Title
 	docs.SwaggerInfo.Description = config.CF.Swagger.Description
 	docs.SwaggerInfo.Version = config.CF.Swagger.Version
-	docs.SwaggerInfo.Host = fmt.Sprintf("%s%s", config.CF.Swagger.Host, config.CF.Swagger.BaseURL)*/
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s%s", config.CF.Swagger.Host, config.CF.Swagger.BaseURL)
 	//docs.SwaggerInfo.Schemes = []string{"https", "http"}
 
 	// Init connection database
@@ -59,7 +60,7 @@ func main() {
 		}
 		session, err := sql.InitConnection(configuration)
 		if err != nil {
-			logger.Log().Fatalf("init connection db error: %s", err)
+			logger.Log.Fatalf("init connection db error: %s", err)
 		}
 		sql.RelayDatabase = session.Database
 
@@ -87,7 +88,7 @@ func main() {
 	serverShutdown := make(chan struct{})
 	go func() {
 		<-exit.Done()
-		logger.Log().Info("Gracefully shutting down...")
+		logger.Log.Info("Gracefully shutting down...")
 		_ = app.ShutdownWithContext(exit)
 		serverShutdown <- struct{}{}
 	}()
@@ -98,19 +99,19 @@ func main() {
 	}
 	err = app.Listen(fmt.Sprintf(":%d", config.CF.App.Port), listenConfig)
 	if err != nil {
-		logger.Log().Panic(err)
+		logger.Log.Panic(err)
 	}
-	logger.Log().Infof("Start server on port: %d ...", config.CF.App.Port)
+	logger.Log.Infof("Start server on port: %d ...", config.CF.App.Port)
 
 	// Cleanup tasks
 	<-serverShutdown
-	logger.Log().Info("Running cleanup tasks...")
+	logger.Log.Info("Running cleanup tasks...")
 
 	// Close db
 	if config.CF.Database.RelaySQL.Enable {
 		go sql.CloseConnection(sql.RelayDatabase)
 	}
-	logger.Log().Info("Database connection closed")
+	logger.Log.Info("Database connection closed")
 
-	logger.Log().Info("Fiber was successful shutdown")
+	logger.Log.Info("Fiber was successful shutdown")
 }
