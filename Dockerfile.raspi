@@ -33,6 +33,10 @@ RUN go mod verify
 ## Copy the source code
 COPY . .
 
+## Gen swagger
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+RUN swag init --md ./docs --parseGoList --parseDependency -g main.go
+
 ## Build app
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo -ldflags="-w -s" -o main .
 
