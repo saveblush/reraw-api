@@ -87,6 +87,7 @@ type Configs struct {
 		Environment     Environment      `mapstructure:"ENVIRONMENT"`
 		Issuer          string           `mapstructure:"ISSUER"`
 		Sources         []UserPassConfig `mapstructure:"SOURCES"`
+		LazyRelays      []string         `mapstructure:"LAZY_RELAYS"`
 	} `mapstructure:"APP"`
 
 	HTTPServer struct {

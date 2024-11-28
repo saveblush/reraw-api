@@ -44,7 +44,7 @@ func NewRouter(app *fiber.App) {
 	// user nostr
 	userEndpoint := user.NewEndpoint()
 	userRoute := app
-	userRoute.Get(".well-known/nostr.json", userEndpoint.Find)
-
+	userRoute.Get(".well-known/nostr.json", userEndpoint.FindWellKnownName)
+	userRoute.Get(".well-known/lnurlp/:name", userEndpoint.FindWellKnownLNURL)
 	app.Use(middlewares.Notfound())
 }

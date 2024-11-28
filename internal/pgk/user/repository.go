@@ -8,7 +8,7 @@ import (
 
 // repository interface
 type Repository interface {
-	Find(db *gorm.DB, req *Request) error
+	Find(db *gorm.DB, req *RequestWellKnownName) error
 	FindByIDString(db *gorm.DB, field string, value string, i interface{}) error
 }
 
@@ -23,7 +23,7 @@ func NewRepository() Repository {
 }
 
 // Find find
-func (r *repository) Find(db *gorm.DB, req *Request) error {
+func (r *repository) Find(db *gorm.DB, req *RequestWellKnownName) error {
 
 	return nil
 }

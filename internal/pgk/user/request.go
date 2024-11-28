@@ -1,5 +1,5 @@
 package user
 
-type Request struct {
-	Name string `json:"name" query:"name"`
+type RequestWellKnownName struct {
+	Name string `json:"name" path:"name" query:"name"`
 }

@@ -16,22 +16,6 @@ var (
 	contentTypeJson = "application/json"
 )
 
-// New new client
-func New() *resty.Client {
-	var debug bool
-	if !config.CF.App.Environment.Production() {
-		debug = true
-	}
-
-	client := resty.New()
-	client.SetDebug(debug)
-	client.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
-	client.SetTimeout(3 * time.Minute)
-	client.SetContentLength(true)
-
-	return client
-}
-
 // Client client interface
 type Client interface {
 	BasicAuthentication(token string) string
@@ -48,11 +32,27 @@ type client struct {
 	session *resty.Client
 }
 
-// NewClient new client
-func NewClient() Client {
+// New new client
+func New() Client {
 	return &client{
-		session: New(),
+		session: initClient(),
 	}
+}
+
+// initClient init client
+func initClient() *resty.Client {
+	var debug bool
+	if !config.CF.App.Environment.Production() {
+		debug = true
+	}
+
+	client := resty.New()
+	client.SetDebug(debug)
+	client.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+	client.SetTimeout(3 * time.Minute)
+	client.SetContentLength(true)
+
+	return client
 }
 
 // BasicAuthentication get basic token

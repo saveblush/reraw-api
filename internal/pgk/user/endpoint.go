@@ -9,7 +9,8 @@ import (
 
 // endpoint interface
 type Endpoint interface {
-	Find(c fiber.Ctx) error
+	FindWellKnownName(c fiber.Ctx) error
+	FindWellKnownLNURL(c fiber.Ctx) error
 }
 
 type endpoint struct {
@@ -27,8 +28,8 @@ func NewEndpoint() Endpoint {
 }
 
 // @Tags User
-// @Summary Find User
-// @Description Find User
+// @Summary FindWellKnownName
+// @Description FindWellKnownName
 // @Accept json
 // @Produce json
 // @Param Accept-Language header string false "(en, th)" default(th)
@@ -39,6 +40,23 @@ func NewEndpoint() Endpoint {
 // @Failure 410 {object} models.Message
 // @Security ApiKeyAuth
 // @Router /.well-known/nostr.json [get]
-func (ep *endpoint) Find(c fiber.Ctx) error {
-	return handlers.ResponseObject(c, ep.service.Find, &Request{})
+func (ep *endpoint) FindWellKnownName(c fiber.Ctx) error {
+	return handlers.ResponseObject(c, ep.service.FindWellKnownName, &RequestWellKnownName{})
+}
+
+// @Tags User
+// @Summary FindWellKnownLNURL
+// @Description FindWellKnownLNURL
+// @Accept json
+// @Produce json
+// @Param Accept-Language header string false "(en, th)" default(th)
+// @Success 200 {object} models.User
+// @Failure 400 {object} models.Message
+// @Failure 401 {object} models.Message
+// @Failure 404 {object} models.Message
+// @Failure 410 {object} models.Message
+// @Security ApiKeyAuth
+// @Router /.well-known/lnurlp/{id} [get]
+func (ep *endpoint) FindWellKnownLNURL(c fiber.Ctx) error {
+	return handlers.ResponseObject(c, ep.service.FindWellKnownLNURL, &RequestWellKnownName{})
 }

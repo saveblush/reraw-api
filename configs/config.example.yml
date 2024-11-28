@@ -10,6 +10,7 @@ APP:
   SOURCES:
     - username: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       password: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  LAZY_RELAYS: ["wss://reraw.pbla2fish.cc","wss://relay.siamstr.com","wss://relay.notoshi.win","wss://relay.damus.io","wss://nos.lol","wss://relay.nostr.band"]
 
 HTTP_SERVER:
   PREFORK: false
