@@ -13,7 +13,7 @@ import (
 
 // Client redis
 type Connection struct {
-	session *redis.Client
+	*redis.Client
 }
 
 var (
@@ -26,17 +26,14 @@ var (
 type Configuration struct {
 	Host     string
 	Port     int
-	Username string
 	Password string
 	DB       int
 }
 
 func Init(cf *Configuration) error {
 	dsn := fmt.Sprintf("%s:%d", cf.Host, cf.Port)
-
 	conn := redis.NewClient(&redis.Options{
 		Addr:         dsn,
-		Username:     cf.Username,
 		Password:     cf.Password,
 		DB:           cf.DB,
 		DialTimeout:  10 * time.Second,
@@ -50,9 +47,7 @@ func Init(cf *Configuration) error {
 		return err
 	}
 
-	client = &Connection{
-		session: conn,
-	}
+	client = &Connection{conn}
 
 	return nil
 }
@@ -76,7 +71,7 @@ func (c *Connection) Set(key string, value interface{}, expiredTime time.Duratio
 		return errMar
 	}
 
-	err := c.session.Set(ctx, key, data, expiredTime).Err()
+	err := c.Client.Set(ctx, key, data, expiredTime).Err()
 	if err != nil {
 		return err
 	}
@@ -85,7 +80,7 @@ func (c *Connection) Set(key string, value interface{}, expiredTime time.Duratio
 }
 
 func (c *Connection) Get(key string, value interface{}) error {
-	val, err := c.session.Get(ctx, key).Result()
+	val, err := c.Client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return errors.New("key does not exists")
@@ -104,7 +99,7 @@ func (c *Connection) Get(key string, value interface{}) error {
 
 func (c *Connection) GetKeys(pattern string) ([]string, error) {
 	var keys []string
-	iter := c.session.Scan(ctx, 0, pattern, 0).Iterator()
+	iter := c.Client.Scan(ctx, 0, pattern, 0).Iterator()
 	for iter.Next(ctx) {
 		keys = append(keys, iter.Val())
 	}
@@ -116,7 +111,7 @@ func (c *Connection) GetKeys(pattern string) ([]string, error) {
 }
 
 func (c *Connection) Delete(key string) error {
-	err := c.session.Del(ctx, key).Err()
+	err := c.Client.Del(ctx, key).Err()
 	if err != nil {
 		return err
 	}
@@ -132,7 +127,7 @@ func (c *Connection) Delete(key string) error {
 		return err
 	}
 
-	err = c.session.Set(ctx, key, b.Bytes(), expiredTime).Err()
+	err = c.Client.Set(ctx, key, b.Bytes(), expiredTime).Err()
 	if err != nil {
 		return err
 	}
@@ -141,7 +136,7 @@ func (c *Connection) Delete(key string) error {
 }
 
 func (c *Connection) Get(key string, value interface{}) error {
-	val, err := c.session.Get(ctx, key).Result()
+	val, err := c.Client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return errors.New("key does not exists")

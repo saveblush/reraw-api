@@ -47,5 +47,15 @@ DATABASE:
     MAX_LIFE_TIME: "5m"
     ENABLE: true
 
+CACHE:
+  EXPIRE_TIME:
+    USERINFO: 2h
+  REDIS:
+    HOST: "10.10.10.10"
+    PORT: 6379
+    PASSWORD: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    DB: 0
+    ENABLE: true
+
 HTML_TEMPLATE:
   SYSTEM_MAINTENANCE: "system_maintenance.html"

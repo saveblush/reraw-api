@@ -10,10 +10,16 @@ import (
 	"github.com/saveblush/reraw-api/internal/core/breaker"
 	"github.com/saveblush/reraw-api/internal/core/cctx"
 	"github.com/saveblush/reraw-api/internal/core/config"
+	"github.com/saveblush/reraw-api/internal/core/connection/cache"
 	"github.com/saveblush/reraw-api/internal/core/connection/client"
 	"github.com/saveblush/reraw-api/internal/core/generic"
 	"github.com/saveblush/reraw-api/internal/core/utils/logger"
 	"github.com/saveblush/reraw-api/internal/models"
+)
+
+var (
+	patternKey = "%s-%s"
+	keyUser    = "user"
 )
 
 // service interface
@@ -25,6 +31,7 @@ type Service interface {
 type service struct {
 	config     *config.Configs
 	repository Repository
+	cache      *cache.Connection
 	client     client.Client
 }
 
@@ -32,8 +39,38 @@ func NewService() Service {
 	return &service{
 		config:     config.CF,
 		repository: NewRepository(),
+		cache:      cache.GetConnection(),
 		client:     client.New(),
 	}
+}
+
+// setKeyUser set key user
+func (s *service) setKeyUser(d string) string {
+	return fmt.Sprintf(patternKey, keyUser, d)
+}
+
+// getUser get user
+func (s *service) getUser(c *cctx.Context, req *RequestWellKnownName) (*models.User, error) {
+	key := s.setKeyUser(req.Name)
+	fetch := &models.User{}
+
+	// ดึงจาก cache
+	errCache := s.cache.Get(key, fetch)
+
+	// ถ้าไม่เจอ cache จะดึงจาก db แล้วเอาไปเก็บใน cache
+	if errCache != nil {
+		err := s.repository.FindByIDString(c.GetRelayDatabase(), "name", req.Name, fetch)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		// เก็บใน cache
+		if !generic.IsEmpty(fetch) {
+			_ = s.cache.Set(key, fetch, s.config.Cache.ExprieTime.UserInfo)
+		}
+	}
+
+	return fetch, nil
 }
 
 // FindWellKnownName find well known name nostr username
@@ -53,9 +90,8 @@ func (s *service) FindWellKnownName(c *cctx.Context, req *RequestWellKnownName) 
 		relays = s.config.App.LazyRelays
 	}
 
-	fetch := &models.User{}
-	err := s.repository.FindByIDString(c.GetRelayDatabase(), "name", req.Name, fetch)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	fetch, err := s.getUser(c, req)
+	if err != nil {
 		return nil, err
 	}
 
@@ -88,9 +124,8 @@ func (s *service) FindWellKnownLNURL(c *cctx.Context, req *RequestWellKnownName)
 		return res, nil
 	}
 
-	fetch := &models.User{}
-	err := s.repository.FindByIDString(c.GetRelayDatabase(), "name", req.Name, fetch)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	fetch, err := s.getUser(c, req)
+	if err != nil {
 		return nil, err
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/saveblush/reraw-api/docs"
 	"github.com/saveblush/reraw-api/internal/core/breaker"
 	"github.com/saveblush/reraw-api/internal/core/config"
+	"github.com/saveblush/reraw-api/internal/core/connection/cache"
 	"github.com/saveblush/reraw-api/internal/core/connection/sql"
 	"github.com/saveblush/reraw-api/internal/core/utils/logger"
 	"github.com/saveblush/reraw-api/internal/handlers/routes"
@@ -73,6 +74,20 @@ func main() {
 	if !config.CF.App.Environment.Production() {
 		if config.CF.Database.RelaySQL.Enable {
 			sql.DebugRelayDatabase()
+		}
+	}
+
+	// Init connection redis
+	if config.CF.Cache.Redis.Enable {
+		configuration := &cache.Configuration{
+			Host:     config.CF.Cache.Redis.Host,
+			Port:     config.CF.Cache.Redis.Port,
+			Password: config.CF.Cache.Redis.Password,
+			DB:       config.CF.Cache.Redis.DB,
+		}
+		err := cache.Init(configuration)
+		if err != nil {
+			logger.Log.Fatalf("init connection redis error: %s", err)
 		}
 	}
 
