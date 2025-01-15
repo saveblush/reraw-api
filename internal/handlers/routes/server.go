@@ -32,8 +32,6 @@ func NewServer() *fiber.App {
 		AppName:           config.CF.App.ProjectName,
 		ServerHeader:      config.CF.App.ProjectName,
 		BodyLimit:         MaximumSize10MB,
-		ReadBufferSize:    MaximumSize1MB,
-		WriteBufferSize:   MaximumSize1MB,
 		IdleTimeout:       360 * time.Second,
 		ReadTimeout:       Timeout10s,
 		WriteTimeout:      Timeout10s,
