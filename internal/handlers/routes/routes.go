@@ -11,8 +11,8 @@ import (
 	"github.com/saveblush/reraw-api/internal/pgk/user"
 )
 
-// NewRouter new router
-func NewRouter(app *fiber.App) {
+// newRouter new router
+func newRouter(app *fiber.App) {
 	// api
 	api := app.Group(config.CF.App.ApiBaseUrl)
 

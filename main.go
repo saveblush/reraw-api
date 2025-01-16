@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,13 +10,9 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/saveblush/reraw-api/docs"
-	"github.com/saveblush/reraw-api/internal/core/breaker"
 	"github.com/saveblush/reraw-api/internal/core/config"
-	"github.com/saveblush/reraw-api/internal/core/connection/cache"
-	"github.com/saveblush/reraw-api/internal/core/connection/sql"
 	"github.com/saveblush/reraw-api/internal/core/utils/logger"
 	"github.com/saveblush/reraw-api/internal/handlers/routes"
-	"github.com/saveblush/reraw-api/internal/models"
 )
 
 // @securityDefinitions.apikey ApiKeyAuth
@@ -32,13 +27,13 @@ func main() {
 	// Init configuration
 	err := config.InitConfig()
 	if err != nil {
-		logger.Log.Fatalf("init configuration error: %s", err)
+		logger.Log.Panicf("init configuration error: %s", err)
 	}
 
 	// Init return result
 	err = config.InitReturnResult()
 	if err != nil {
-		logger.Log.Fatalf("init return result error: %s", err)
+		logger.Log.Panicf("init return result error: %s", err)
 	}
 
 	// Set swagger info
@@ -48,89 +43,26 @@ func main() {
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s%s", config.CF.Swagger.Host, config.CF.Swagger.BaseURL)
 	//docs.SwaggerInfo.Schemes = []string{"https", "http"}
 
-	// Init connection database
-	if config.CF.Database.RelaySQL.Enable {
-		configuration := &sql.Configuration{
-			Host:         config.CF.Database.RelaySQL.Host,
-			Port:         config.CF.Database.RelaySQL.Port,
-			Username:     config.CF.Database.RelaySQL.Username,
-			Password:     config.CF.Database.RelaySQL.Password,
-			DatabaseName: config.CF.Database.RelaySQL.DatabaseName,
-			DriverName:   config.CF.Database.RelaySQL.DriverName,
-			Charset:      config.CF.Database.RelaySQL.Charset,
-			MaxIdleConns: config.CF.Database.RelaySQL.MaxIdleConns,
-			MaxOpenConns: config.CF.Database.RelaySQL.MaxOpenConns,
-			MaxLifetime:  config.CF.Database.RelaySQL.MaxLifetime,
-		}
-		session, err := sql.InitConnection(configuration)
-		if err != nil {
-			logger.Log.Fatalf("init connection db error: %s", err)
-		}
-		sql.RelayDatabase = session.Database
-
-		if !fiber.IsChild() {
-			session.Database.AutoMigrate(&models.User{})
-		}
-	}
-
-	// Debug db
-	if !config.CF.App.Environment.Production() {
-		if config.CF.Database.RelaySQL.Enable {
-			sql.DebugRelayDatabase()
-		}
-	}
-
-	// Init connection redis
-	if config.CF.Cache.Redis.Enable {
-		configuration := &cache.Configuration{
-			Host:     config.CF.Cache.Redis.Host,
-			Port:     config.CF.Cache.Redis.Port,
-			Password: config.CF.Cache.Redis.Password,
-			DB:       config.CF.Cache.Redis.DB,
-		}
-		err := cache.Init(configuration)
-		if err != nil {
-			logger.Log.Fatalf("init connection redis error: %s", err)
-		}
-	}
-
-	// Init Circuit Breaker
-	breaker.Init()
-
 	// Start app
-	app := routes.NewServer()
-
-	// Shutdown
-	exit, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	serverShutdown := make(chan struct{})
-	go func() {
-		<-exit.Done()
-		logger.Log.Info("Gracefully shutting down...")
-		_ = app.ShutdownWithContext(exit)
-		serverShutdown <- struct{}{}
-	}()
-
-	// Listen
+	app, err := routes.NewServer()
+	if err != nil {
+		logger.Log.Panicf("new server error: %s", err)
+	}
+	addr := flag.String("addr", fmt.Sprintf(":%d", config.CF.App.Port), "http service address")
 	listenConfig := fiber.ListenConfig{
 		EnablePrefork: config.CF.HTTPServer.Prefork,
 	}
-	addr := flag.String("addr", fmt.Sprintf(":%d", config.CF.App.Port), "http service address")
-	err = app.Listen(*addr, listenConfig)
-	if err != nil {
-		logger.Log.Panic(err)
-	}
-	logger.Log.Infof("Start server on port: %d ...", *addr)
+	go func() {
+		err = app.Listen(*addr, listenConfig)
+		if err != nil {
+			logger.Log.Panicf("server start error: %s", err)
+		}
+	}()
 
-	// Cleanup tasks
-	<-serverShutdown
-	logger.Log.Info("Running cleanup tasks...")
-
-	// Close db
-	if config.CF.Database.RelaySQL.Enable {
-		go sql.CloseConnection(sql.RelayDatabase)
-	}
-	logger.Log.Info("Database connection closed")
-
-	logger.Log.Info("App was successful shutdown")
+	// Shutdown app
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+	logger.Log.Info("Gracefully shutting down...")
+	_ = app.Close()
 }
