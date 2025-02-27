@@ -1,6 +1,6 @@
 # Define version
 ARG GO_VERSION=1.23.1
-FROM golang:${GO_VERSION}-bullseye AS base
+FROM golang:${GO_VERSION}-alpine AS base
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -15,15 +15,12 @@ ENV GOOS=linux
 # Build source code
 FROM base AS builder
 
+## Install apk
+RUN apk --no-cache add ca-certificates tzdata dumb-init
+
 ## Create user
-RUN adduser \
-  --disabled-password \
-  --gecos "" \
-  --home "/nonexistent" \
-  --shell "/sbin/nologin" \
-  --no-create-home \
-  --uid 65532 \
-  gouser
+RUN addgroup -S gouser \
+    && adduser -S -u 10000 -g gouser gouser
 
 ## Change ownership
 RUN mkdir /build
@@ -45,16 +42,16 @@ RUN swag init --md ./docs --parseGoList --parseDependency -g main.go
 
 ## Build app
 RUN GOARCH=$(echo "$TARGETPLATFORM" | cut -d'/' -f2) go build \
-   #-ldflags="-X 'github.com/saveblush/reraw-api/version.Tag=$TAG'" \
    -ldflags="-w -s" \
    -o main .
 
 
 # Production, final image to reduce size
 FROM scratch AS runner
-WORKDIR /app
+ WORKDIR /app
 
 ## Copy os bundle from the builder
+COPY --from=builder /usr/bin/dumb-init /usr/bin/dumb-init
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /etc/passwd /etc/passwd
@@ -62,7 +59,9 @@ COPY --from=builder /etc/group /etc/group
 
 ## Copy app from the builder
 COPY --from=builder /build/main .
+COPY --from=builder --chown=gouser:gouser /build/docs ./docs
 COPY --from=builder --chown=gouser:gouser /build/configs ./configs
+COPY --from=builder --chown=gouser:gouser /build/templates ./templates
 
 USER gouser
 
@@ -70,4 +69,5 @@ ENV TZ=Asia/Bangkok
 
 EXPOSE 8000
 
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["/app/main"]
