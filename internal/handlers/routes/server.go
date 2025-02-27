@@ -104,7 +104,7 @@ func (s *Server) Close() error {
 
 	// Close db
 	if config.CF.Database.RelaySQL.Enable {
-		go sql.CloseConnection(sql.RelayDatabase)
+		go sql.CloseConnection(sql.Database)
 	}
 	logger.Log.Info("Database connection closed")
 
@@ -150,7 +150,7 @@ func newDatabase() error {
 		if err != nil {
 			return err
 		}
-		sql.RelayDatabase = session.Database
+		sql.Database = session.Database
 
 		if !fiber.IsChild() {
 			session.Database.AutoMigrate(&models.User{})
@@ -160,7 +160,7 @@ func newDatabase() error {
 	// Debug db
 	if !config.CF.App.Environment.Production() {
 		if config.CF.Database.RelaySQL.Enable {
-			sql.DebugRelayDatabase()
+			sql.DebugDatabase()
 		}
 	}
 

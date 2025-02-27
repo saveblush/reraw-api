@@ -59,7 +59,7 @@ func (s *service) getUser(c *cctx.Context, req *RequestWellKnownName) (*models.U
 
 	// ถ้าไม่เจอ cache จะดึงจาก db แล้วเอาไปเก็บใน cache
 	if errCache != nil {
-		err := s.repository.FindByIDString(c.GetRelayDatabase(), "name", req.Name, fetch)
+		err := s.repository.FindByIDString(c.GetDatabase(), "name", req.Name, fetch)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
