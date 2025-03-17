@@ -10,7 +10,10 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/saveblush/reraw-api/docs"
+	"github.com/saveblush/reraw-api/internal/core/breaker"
 	"github.com/saveblush/reraw-api/internal/core/config"
+	"github.com/saveblush/reraw-api/internal/core/connection/cache"
+	"github.com/saveblush/reraw-api/internal/core/connection/sql"
 	"github.com/saveblush/reraw-api/internal/core/utils/logger"
 	"github.com/saveblush/reraw-api/internal/handlers/routes"
 )
@@ -27,13 +30,13 @@ func main() {
 	// Init configuration
 	err := config.InitConfig()
 	if err != nil {
-		logger.Log.Panicf("init configuration error: %s", err)
+		logger.Log.Fatalf("init configuration error: %s", err)
 	}
 
 	// Init return result
 	err = config.InitReturnResult()
 	if err != nil {
-		logger.Log.Panicf("init return result error: %s", err)
+		logger.Log.Fatalf("init return result error: %s", err)
 	}
 
 	// Set swagger info
@@ -43,11 +46,31 @@ func main() {
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s%s", config.CF.Swagger.Host, config.CF.Swagger.BaseURL)
 	//docs.SwaggerInfo.Schemes = []string{"https", "http"}
 
-	// Start app
+	// Init database
+	err = initDatabase()
+	if err != nil {
+		logger.Log.Fatalf("init database error: %s", err)
+	}
+
+	// Init cache
+	err = initCache()
+	if err != nil {
+		logger.Log.Fatalf("init cache error: %s", err)
+	}
+
+	// Init Circuit Breaker
+	breaker.Init()
+
+	// New app
 	app, err := routes.NewServer()
 	if err != nil {
-		logger.Log.Panicf("new server error: %s", err)
+		logger.Log.Fatalf("new server error: %s", err)
 	}
+
+	// Init router
+	app.InitRouter()
+
+	// Listen app
 	addr := flag.String("addr", fmt.Sprintf(":%d", config.CF.App.Port), "http service address")
 	listenConfig := fiber.ListenConfig{
 		EnablePrefork: config.CF.HTTPServer.Prefork,
@@ -55,7 +78,7 @@ func main() {
 	go func() {
 		err = app.Listen(*addr, listenConfig)
 		if err != nil {
-			logger.Log.Panicf("server start error: %s", err)
+			logger.Log.Fatalf("server start error: %s", err)
 		}
 	}()
 
@@ -64,5 +87,70 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	logger.Log.Info("Gracefully shutting down...")
+
+	// Close app
 	_ = app.Close()
+	logger.Log.Info("Server closed")
+	logger.Log.Info("Running cleanup tasks...")
+
+	// Close cache
+	_ = cache.New().Close()
+	logger.Log.Info("Cache connection closed")
+
+	// Close db
+	_ = closeDatabase()
+	logger.Log.Info("Database connection closed")
+
+	logger.Log.Info("App was successful shutdown")
+}
+
+// initDatabase init connection database
+func initDatabase() error {
+	configuration := &sql.Configuration{
+		Host:         config.CF.Database.RelaySQL.Host,
+		Port:         config.CF.Database.RelaySQL.Port,
+		Username:     config.CF.Database.RelaySQL.Username,
+		Password:     config.CF.Database.RelaySQL.Password,
+		DatabaseName: config.CF.Database.RelaySQL.DatabaseName,
+		DriverName:   config.CF.Database.RelaySQL.DriverName,
+		Charset:      config.CF.Database.RelaySQL.Charset,
+		MaxIdleConns: config.CF.Database.RelaySQL.MaxIdleConns,
+		MaxOpenConns: config.CF.Database.RelaySQL.MaxOpenConns,
+		MaxLifetime:  config.CF.Database.RelaySQL.MaxLifetime,
+	}
+	session, err := sql.InitConnection(configuration)
+	if err != nil {
+		return err
+	}
+	sql.Database = session.Database
+
+	// Debug db
+	if !config.CF.App.Environment.Production() {
+		sql.DebugDatabase()
+	}
+
+	return nil
+}
+
+// initCache init cache
+func initCache() error {
+	configuration := &cache.Configuration{
+		Host:     config.CF.Cache.Redis.Host,
+		Port:     config.CF.Cache.Redis.Port,
+		Password: config.CF.Cache.Redis.Password,
+		DB:       config.CF.Cache.Redis.DB,
+	}
+	err := cache.Init(configuration)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// closeDatabase close connection database
+func closeDatabase() error {
+	sql.CloseConnection(sql.Database)
+
+	return nil
 }

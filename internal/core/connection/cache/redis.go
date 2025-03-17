@@ -6,54 +6,51 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bytedance/sonic"
+	"github.com/goccy/go-json"
 	"github.com/redis/go-redis/v9"
 )
 
-// Client redis
-type Connection struct {
-	*redis.Client
+var client *redis.Client
+
+type connection struct {
+	client *redis.Client
+	ctx    context.Context
 }
 
-var (
-	ctx     = context.Background()
-	ctxTodo = context.TODO()
-	client  = &Connection{}
-)
-
-// Configuration config Redis connection
+// Configuration config redis connection
 type Configuration struct {
 	Host     string
 	Port     int
+	Username string
 	Password string
 	DB       int
 }
 
+// Init init a new redis connection
 func Init(cf *Configuration) error {
-	dsn := fmt.Sprintf("%s:%d", cf.Host, cf.Port)
+	addr := fmt.Sprintf("%s:%d", cf.Host, cf.Port)
 	conn := redis.NewClient(&redis.Options{
-		Addr:         dsn,
-		Password:     cf.Password,
-		DB:           cf.DB,
-		DialTimeout:  10 * time.Second,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		PoolSize:     10,
-		PoolTimeout:  30 * time.Second,
+		Addr:     addr,
+		Username: cf.Username,
+		Password: cf.Password,
+		DB:       cf.DB,
 	})
 
-	if err := conn.Ping(ctxTodo).Err(); err != nil {
+	if err := conn.Ping(context.TODO()).Err(); err != nil {
 		return err
 	}
 
-	client = &Connection{conn}
+	client = conn
 
 	return nil
 }
 
-// GetConnection get client connection
-func GetConnection() *Connection {
-	return client
+// New new client connection
+func New() *connection {
+	return &connection{
+		client: client,
+		ctx:    context.Background(),
+	}
 }
 
 // Service service interface
@@ -62,15 +59,16 @@ type Service interface {
 	Get(key string, value interface{}) error
 	GetKeys(pattern string) ([]string, error)
 	Delete(key string) error
+	Close() error
 }
 
-func (c *Connection) Set(key string, value interface{}, expiredTime time.Duration) error {
-	data, errMar := sonic.Marshal(&value)
+func (c *connection) Set(key string, value interface{}, expiredTime time.Duration) error {
+	data, errMar := json.Marshal(&value)
 	if errMar != nil {
 		return errMar
 	}
 
-	err := c.Client.Set(ctx, key, data, expiredTime).Err()
+	err := c.client.Set(c.ctx, key, data, expiredTime).Err()
 	if err != nil {
 		return err
 	}
@@ -78,8 +76,8 @@ func (c *Connection) Set(key string, value interface{}, expiredTime time.Duratio
 	return nil
 }
 
-func (c *Connection) Get(key string, value interface{}) error {
-	val, err := c.Client.Get(ctx, key).Result()
+func (c *connection) Get(key string, value interface{}) error {
+	val, err := c.client.Get(c.ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return errors.New("key does not exists")
@@ -88,7 +86,7 @@ func (c *Connection) Get(key string, value interface{}) error {
 		return err
 	}
 
-	errMar := sonic.Unmarshal([]byte(val), &value)
+	errMar := json.Unmarshal([]byte(val), &value)
 	if errMar != nil {
 		return errMar
 	}
@@ -96,10 +94,10 @@ func (c *Connection) Get(key string, value interface{}) error {
 	return nil
 }
 
-func (c *Connection) GetKeys(pattern string) ([]string, error) {
+func (c *connection) GetKeys(pattern string) ([]string, error) {
 	var keys []string
-	iter := c.Client.Scan(ctx, 0, pattern, 0).Iterator()
-	for iter.Next(ctx) {
+	iter := c.client.Scan(c.ctx, 0, pattern, 0).Iterator()
+	for iter.Next(c.ctx) {
 		keys = append(keys, iter.Val())
 	}
 	if err := iter.Err(); err != nil {
@@ -109,8 +107,18 @@ func (c *Connection) GetKeys(pattern string) ([]string, error) {
 	return keys, nil
 }
 
-func (c *Connection) Delete(key string) error {
-	err := c.Client.Del(ctx, key).Err()
+func (c *connection) Delete(key string) error {
+	err := c.client.Del(c.ctx, key).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Close close connection
+func (c *connection) Close() error {
+	err := c.client.Close()
 	if err != nil {
 		return err
 	}
@@ -126,7 +134,7 @@ func (c *Connection) Delete(key string) error {
 		return err
 	}
 
-	err = c.Client.Set(ctx, key, b.Bytes(), expiredTime).Err()
+	err = c.client.Set(c.ctx, key, b.Bytes(), expiredTime).Err()
 	if err != nil {
 		return err
 	}
@@ -135,7 +143,7 @@ func (c *Connection) Delete(key string) error {
 }
 
 func (c *Connection) Get(key string, value interface{}) error {
-	val, err := c.Client.Get(ctx, key).Result()
+	val, err := c.client.Get(c.ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return errors.New("key does not exists")

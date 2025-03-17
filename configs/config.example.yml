@@ -45,7 +45,6 @@ DATABASE:
     MAX_IDLE_CONNS: 5
     MAX_OPEN_CONNS: 8
     MAX_LIFE_TIME: "5m"
-    ENABLE: true
 
 CACHE:
   EXPIRE_TIME:
@@ -55,7 +54,6 @@ CACHE:
     PORT: 6379
     PASSWORD: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     DB: 0
-    ENABLE: true
 
 HTML_TEMPLATE:
   SYSTEM_MAINTENANCE: "system_maintenance.html"

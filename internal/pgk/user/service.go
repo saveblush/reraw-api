@@ -31,7 +31,7 @@ type Service interface {
 type service struct {
 	config     *config.Configs
 	repository Repository
-	cache      *cache.Connection
+	cache      cache.Service
 	client     client.Client
 }
 
@@ -39,7 +39,7 @@ func NewService() Service {
 	return &service{
 		config:     config.CF,
 		repository: NewRepository(),
-		cache:      cache.GetConnection(),
+		cache:      cache.New(),
 		client:     client.New(),
 	}
 }

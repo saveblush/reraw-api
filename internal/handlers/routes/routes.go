@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"github.com/gofiber/fiber/v3"
 	swagger "github.com/saveblush/gofiber3-swagger"
 
 	"github.com/saveblush/reraw-api/internal/core/config"
@@ -11,10 +10,10 @@ import (
 	"github.com/saveblush/reraw-api/internal/pgk/user"
 )
 
-// newRouter new router
-func newRouter(app *fiber.App) {
+// InitRouter init router
+func (s *server) InitRouter() {
 	// api
-	api := app.Group(config.CF.App.ApiBaseUrl)
+	api := s.Group(config.CF.App.ApiBaseUrl)
 
 	// system
 	systemEndpoint := system.NewEndpoint()
@@ -43,10 +42,10 @@ func newRouter(app *fiber.App) {
 
 	// user nostr
 	userEndpoint := user.NewEndpoint()
-	userRoute := app
+	userRoute := s
 	userRoute.Get(".well-known/nostr.json", userEndpoint.FindWellKnownName)
 	userRoute.Get(".well-known/lnurlp/:name", userEndpoint.FindWellKnownLNURL)
 
 	// not found
-	app.Use(middlewares.Notfound())
+	s.Use(middlewares.Notfound())
 }

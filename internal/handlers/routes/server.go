@@ -3,7 +3,7 @@ package routes
 import (
 	"time"
 
-	"github.com/bytedance/sonic"
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -13,13 +13,9 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 
-	"github.com/saveblush/reraw-api/internal/core/breaker"
+	"github.com/saveblush/reraw-api/internal/core/cctx"
 	"github.com/saveblush/reraw-api/internal/core/config"
-	"github.com/saveblush/reraw-api/internal/core/connection/cache"
-	"github.com/saveblush/reraw-api/internal/core/connection/sql"
-	"github.com/saveblush/reraw-api/internal/core/utils/logger"
 	"github.com/saveblush/reraw-api/internal/handlers/middlewares"
-	"github.com/saveblush/reraw-api/internal/models"
 )
 
 const (
@@ -33,18 +29,19 @@ const (
 	Timeout10s = 10 * time.Second
 )
 
-type Server struct {
+type server struct {
+	// fiber
 	*fiber.App
+
+	// core context
+	cctx *cctx.Context
+
+	// config
+	config *config.Configs
 }
 
 // NewServer new server
-func NewServer() (*Server, error) {
-	// New source
-	err := newSource()
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer() (*server, error) {
 	// New fiber app
 	app := fiber.New(fiber.Config{
 		AppName:           config.CF.App.ProjectName,
@@ -55,8 +52,8 @@ func NewServer() (*Server, error) {
 		WriteTimeout:      Timeout10s,
 		ReduceMemoryUsage: true,
 		CaseSensitive:     true,
-		JSONEncoder:       sonic.Marshal,
-		JSONDecoder:       sonic.Unmarshal,
+		JSONEncoder:       json.Marshal,
+		JSONDecoder:       json.Unmarshal,
 	})
 
 	// Middlewares
@@ -85,101 +82,19 @@ func NewServer() (*Server, error) {
 		middlewares.WrapError(),
 	)
 
-	// New router
-	newRouter(app)
-
-	return &Server{app}, nil
+	return &server{
+		App:    app,
+		cctx:   &cctx.Context{},
+		config: config.CF,
+	}, nil
 }
 
 // Close close server
-func (s *Server) Close() error {
-	// shutdown server
+func (s *server) Close() error {
+	// Shutdown server
 	err := s.Shutdown()
 	if err != nil {
 		return err
-	}
-
-	// Cleanup tasks
-	logger.Log.Info("Running cleanup tasks...")
-
-	// Close db
-	if config.CF.Database.RelaySQL.Enable {
-		go sql.CloseConnection(sql.Database)
-	}
-	logger.Log.Info("Database connection closed")
-
-	return nil
-}
-
-// newSource new source
-func newSource() error {
-	// Init Circuit Breaker
-	breaker.Init()
-
-	// New connection database
-	err := newDatabase()
-	if err != nil {
-		return err
-	}
-
-	// New cache
-	err = newCache()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// newDatabase new connection database
-func newDatabase() error {
-	if config.CF.Database.RelaySQL.Enable {
-		configuration := &sql.Configuration{
-			Host:         config.CF.Database.RelaySQL.Host,
-			Port:         config.CF.Database.RelaySQL.Port,
-			Username:     config.CF.Database.RelaySQL.Username,
-			Password:     config.CF.Database.RelaySQL.Password,
-			DatabaseName: config.CF.Database.RelaySQL.DatabaseName,
-			DriverName:   config.CF.Database.RelaySQL.DriverName,
-			Charset:      config.CF.Database.RelaySQL.Charset,
-			MaxIdleConns: config.CF.Database.RelaySQL.MaxIdleConns,
-			MaxOpenConns: config.CF.Database.RelaySQL.MaxOpenConns,
-			MaxLifetime:  config.CF.Database.RelaySQL.MaxLifetime,
-		}
-		session, err := sql.InitConnection(configuration)
-		if err != nil {
-			return err
-		}
-		sql.Database = session.Database
-
-		if !fiber.IsChild() {
-			session.Database.AutoMigrate(&models.User{})
-		}
-	}
-
-	// Debug db
-	if !config.CF.App.Environment.Production() {
-		if config.CF.Database.RelaySQL.Enable {
-			sql.DebugDatabase()
-		}
-	}
-
-	return nil
-}
-
-// newCache new cache
-func newCache() error {
-	if config.CF.Cache.Redis.Enable {
-		configuration := &cache.Configuration{
-			Host:     config.CF.Cache.Redis.Host,
-			Port:     config.CF.Cache.Redis.Port,
-			Password: config.CF.Cache.Redis.Password,
-			DB:       config.CF.Cache.Redis.DB,
-		}
-		err := cache.Init(configuration)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
